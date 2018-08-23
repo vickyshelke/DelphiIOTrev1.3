@@ -1,0 +1,1 @@
+curl -X PATCH --header "Content-Type:application/json" --data '{ "network": {"proxy": { "type": "http-connect","ip": "192.168.1.105","port": 4009},"hostname": "WIPROPUNE"}}' "$RESIN_SUPERVISOR_ADDRESS/v1/device/host-config?apikey=$RESIN_SUPERVISOR_API_KEY"

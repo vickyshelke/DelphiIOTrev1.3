@@ -1,0 +1,7 @@
+LOG_ENABLE     =      True
+BUFFER_SIZE    =      10000
+REMOTE_HOST    =      52.170.42.16
+REMOTE_PORT    =      5555
+LOGFILE        =      machineLog
+FETCHURL       =      fetch_dev_conf
+SENDURL        =      get
