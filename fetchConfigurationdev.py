@@ -1,3 +1,4 @@
+
 import urllib3
 http = urllib3.PoolManager()
 import sys
@@ -13,8 +14,8 @@ log_config = ConfigParser.ConfigParser()
 log_config.readfp(open(r'logConfig.txt'))
 LOGFILE=log_config.get('log-config','LOGFILE')
 FETCHURL=log_config.get('log-config','FETCHURL')
-HOST=log_config.get('log-config','REMOTE_HOST')
-PORT=log_config.get('log-config','REMOTE_PORT')
+HOST=log_config.get('log-config','DELPHI_HOST')
+PORT=log_config.get('log-config','DELPHI_PORT')
 
 log = logging.getLogger('')
 log.setLevel(logging.DEBUG)
@@ -53,7 +54,7 @@ except urllib3.exceptions.MaxRetryError as e:
 
 
 #log.debug('HTTP Send Status: ',r.status)
-#as output of r.data you should get something like: 
+#as output of r.data you should get something like:
 #config_data= [{"MAC": "B8:27:EB:66:0C:A9", "PIN": "16", "Machine": "TS065-4", "Facility": "IZM", "SignalID": "ECP", "DeviceType": "Raspberry PI", "DeviceModel": "IONO PI", "Logic": "Inverted", "MaxPartPerCycle": 4},
 #{"MAC": "B8:27:EB:66:0C:A9", "PIN": "19", "Machine": "TS065-4", "Facility": "IZM", "SignalID": "QSP", "DeviceType": "Raspberry PI", "DeviceModel": "IONO PI", "Logic": "Inverted", "MaxPartPerCycle": null}]
 
@@ -85,12 +86,12 @@ with open("machineConfig.txt", "w+") as myfile:
         if any("maxpartpercycle" in d for d in config_data):
                 writeTomachineConfig = writeTomachineConfig + "MaxPartPerCycle       = "+ str(config_data[0]['maxpartpercycle'])+"\n"
         writeTomachineConfig = writeTomachineConfig + "TotalMachines         = " +str(len(machineCount))+"\n"
-        
+
         myfile.write(writeTomachineConfig)
         for x in range(int(len(machineCount))):
                 data="MACHINE"+str(x+1)+"_NAME         = "+machineCount[x]+"\n"
                 myfile.write(data)
-                
+
                 #Parse Digital Inputs
                 goodbadPresent=0
                 for machine in config_data:
