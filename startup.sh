@@ -20,7 +20,7 @@ python fetchConfiguration.py
 if [ $? -eq 0 ]
 then
   #echo 'Starting data collection from machine'
-  python plc_collect.py
+  python collectMachinedata.py
 
 else
   echo "Problem in fetching configuration" 
