@@ -1,5 +1,4 @@
 
-
 ''' Software to gather Plc data from Delphi factory shops as a part of Delphi IOT '''
 
 
@@ -25,6 +24,7 @@ import sys
 import ConfigParser
 import uuid
 import buffer
+import wiprobuffer
 import Queue
 #for python 2
 import urllib
@@ -40,6 +40,7 @@ from logging import handlers
 
 http = urllib3.PoolManager()
 q=Queue.Queue(maxsize=10) # que to hold messages temporary
+wiproq=Queue.Queue(maxsize=10)
 
 
 #------------------global arrays to hold each machine information -------------------------------------------------- 
@@ -125,8 +126,10 @@ for k in range (totalMachines):
 log_config = ConfigParser.ConfigParser()
 log_config.readfp(open(r'logConfig.txt'))
 LOG= log_config.get('log-config', 'LOG_ENABLE')
-HOST=log_config.get('log-config', 'REMOTE_HOST')
-PORT=log_config.get('log-config', 'REMOTE_PORT')
+HOST=log_config.get('log-config', 'DELPHI_HOST')
+PORT=log_config.get('log-config', 'DELPHI_PORT')
+WIPROHOST=log_config.get('log-config', 'WIPRO_HOST')
+WIPROPORT=log_config.get('log-config', 'WIPRO_PORT')
 LOGFILE=log_config.get('log-config','LOGFILE')
 SENDURL=log_config.get('log-config','SENDURL')
 log = logging.getLogger('')
@@ -139,6 +142,7 @@ else :
 
 
 # write to coonsle screen
+#formatter_stdout = logging.Formatter("%(asctime)s %(levelname)s - %(message)s")
 formatter_stdout = logging.Formatter("%(levelname)s - %(message)s")
 log_stdout = logging.StreamHandler(sys.stdout)
 log_stdout.setFormatter(formatter_stdout)
@@ -239,7 +243,7 @@ class Machine:
 '''
 #-------------------------------------------------------------------------------------------------------------------------------
 
-def sendData(timestamp,machinename,data):
+def sendDataToDelphi(timestamp,machinename,data):
         data_send_from_machine_status=0
         fields={'ts':timestamp,'loc':LOCATION,'mach':machinename,'data':data}
         encoded_args = urllib.urlencode(fields)
@@ -251,12 +255,37 @@ def sendData(timestamp,machinename,data):
                 data_send_from_machine_status=0
         if data_send_from_machine_status != 200 :
                 if data_send_from_machine_status==0:
-                        log.error(" Not able to send data : Connection Error")
+                        log.error(" Not able to send data to Delphi Azure: Connection Error")
                 else:
                         log.debug("HTTP send status : %d",data_send_from_machine_status)
                 buffer.push(timestamp+" "+LOCATION+ " " + machinename +" "+data)
         else:
                 log.debug("HTTP send status : %d",data_send_from_machine_status)
+
+
+
+def sendDataToWipro(timestamp,machinename,data):
+        data_send_from_machine_status=0
+        fields={'ts':timestamp,'loc':LOCATION,'mach':machinename,'data':data}
+        encoded_args = urllib.urlencode(fields)
+        url1 = 'http://' + WIPROHOST + ':' + WIPROPORT + '/get?' + encoded_args
+        logging.debug(url1)
+        try:
+                r = http.request('GET', url1,timeout=2.0)
+                data_send_from_machine_status=r.status
+        except urllib3.exceptions.MaxRetryError as e:
+                data_send_from_machine_status=0
+        if data_send_from_machine_status != 200 :
+                if data_send_from_machine_status==0:
+                        logging.error(" Not able to send data to wipro Azure : Connection Error")
+                else:
+                        logging.debug("HTTP send status : %d",data_send_from_machine_status)
+                wiprobuffer.push(timestamp+" "+LOCATION+ " " + machinename +" "+data)
+        else:
+                logging.debug("HTTP send status : %d",data_send_from_machine_status)
+
+
+
 
 
 
@@ -267,15 +296,28 @@ function to check network connectivity to Delphi NiFi
 '''
 #-----------------------------------------------------------------------------------------------------------------------------------------
 
-def NificonnectionStatus_on():
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(3)
+def NiFiconnectionStatus_Delphi():
+        
+        conn_url = 'http://' + HOST + ':' + PORT + '/' + SENDURL +'?'
         try:
-                s.connect((HOST, int(PORT)))
-                s.close()
-                return True
+                r = http.request('GET', conn_url,timeout=2.0)    
+                return str(r.status)
         except:
                 return False
+
+
+def NiFiconnectionStatus_Wipro():
+        url1 = 'http://' + WIPROHOST + ':' + WIPROPORT + '/get?'
+        try:
+                
+                r = http.request('GET', url1,timeout=2.0) 
+        #log.debug("returnig true")
+                return str(r.status)
+        except:
+    #   log.debug("returnig false---------------")
+                return False
+
+
 
 
 
@@ -334,6 +376,7 @@ def plcMachine10(channel):
 def process_machine_data(machineNo):
 
         global q
+        global wiproq
         time.sleep(0.1)
         if (GPIO.input(machineCycleSignal[machineNo])==VerificationLogic): # dry contact closed on machine cycle pin
                 if machine_cycle_risingEdge_detected[machineNo] == 0:
@@ -373,6 +416,9 @@ def process_machine_data(machineNo):
                                 send_message[machineNo]=machine_cycle_timestamp[machineNo]+" "+machineName[machineNo]+" "+finalmessage[machineNo]
                                 q.put(send_message[machineNo])
                                 q.task_done()
+                                wiproq.put(send_message[machineNo])
+                                
+                                wiproq.task_done()
                         else:
                                 log.debug(" %s cycle pulse width is invalid",machineName[machineNo])
                 machineobject[machineNo].machine_cycle_cleartime()
@@ -420,7 +466,7 @@ for m in range (totalMachines):
 #------------------------------------------------------------------------------------------------------------------------------------------
 
 def machineData(q):
-        log.debug(" Machine thread started ")
+        log.debug(" Machine thread for sending data to Delphi Azure started ")
         messagesSinceLastReboot=0
         fd = open("machineCount.txt", "w+")
         fd.write ('TimeStamp of first MachineCycle signal received :0000-00-00T00:00:00.000+00:00 \n')
@@ -435,8 +481,20 @@ def machineData(q):
                         log.debug("writing timestamp")
                         with open("machineCount.txt", "r+") as file: 
                                 file.write ('TimeStamp of first MachineCycle signal received :'+str(dataToSend[0]))  
-                sendData(dataToSend[0],dataToSend[1],dataToSend[2])
-        log.debug("machine data exited")
+                sendDataToDelphi(dataToSend[0],dataToSend[1],dataToSend[2])
+        log.debug("machine data thread for Delphi Azure exited")
+
+
+def machineDatatowipro(wiproq):
+        logging.debug("machine thread for sending data to Wipro azure started ")
+        
+        while True:
+                dataw=wiproq.get()
+                dataToSendwipro=dataw.split()
+                sendDataToWipro(dataToSendwipro[0],dataToSendwipro[1],dataToSendwipro[2])
+        logging.debug("machine data thread for Wipro Azure exited")
+
+
 
 
 
@@ -450,25 +508,46 @@ def machineData(q):
 
 
 t = threading.Thread(name = "sendDataThread", target=machineData, args=(q,))
+twipro = threading.Thread(name = "sendDataThread", target=machineDatatowipro, args=(wiproq,))
 t.start()
-
+twipro.start()
 
 log.debug("Data collection started")
 try:
         while True:
-                if NificonnectionStatus_on()==True:
-                        log.debug( " Connection status to NiFi for edge device[%s] : CONNECTED ",str(get_mac()))
+                if NiFiconnectionStatus_Delphi()=='200':
+                        log.debug( " Connection status to Delphi NiFi for edge device[%s] : CONNECTED ",str(get_mac()))
                         data=buffer.pop().rstrip()
                         if data!="-1":
                                 while data!="-1":
                                         dataTosend=data.split()
                                         if len(dataTosend)!=0:
-                                                sendData(dataTosend[0],dataTosend[2],dataTosend[3])
+                                                sendDataToDelphi(dataTosend[0],dataTosend[2],dataTosend[3])
                                                 time.sleep(3)
                                                 data=buffer.pop().rstrip()
                 else:
-                        log.error(" Connection status to NiFi : NO NETWORK ")
+                        log.error(" Connection status to Delphi NiFi : NO NETWORK ")
+
+                if NiFiconnectionStatus_Wipro()=='200':
+                        logging.debug( " Connection status to wipro NiFi for edge device[%s]: CONNECTED ",str(get_mac()))
+                        #logging.debug("MAC address of Edge Device: %s", str(get_mac()))
+                        data1=wiprobuffer.pop().rstrip()
+                        if data1!="-1":
+                                while data1!="-1":
+                                        dataTosendwipro=data1.split()
+                                        if len(dataTosendwipro)!=0:
+                        #log.debug("sending data to wipro")
+                                                sendDataToWipro(dataTosendwipro[0],dataTosendwipro[2],dataTosendwipro[3])
+                                                time.sleep(3)
+                        
+                                                data1=wiprobuffer.pop().rstrip() # this is breaking inner while condition
+                else:
+                        logging.error(" Connection status to wipro NiFi : NO NETWORK ")
+
+
                 time.sleep(60)
+
+
 except KeyboardInterrupt:
         log.debug(" Quit ")
         GPIO.cleanup()
