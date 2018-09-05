@@ -1,7 +1,11 @@
+[log-config]
+
 LOG_ENABLE     =      True
 BUFFER_SIZE    =      10000
-REMOTE_HOST    =      172.30.25.7
-REMOTE_PORT    =      5557
+DELPHI_HOST    =      172.30.25.7
+DELPHI_PORT    =      5557
+WIPRO_HOST     =      52.170.42.16
+WIPRO_PORT     =      5555
 LOGFILE        =      machineLog
 FETCHURL       =      fetch_dev_conf
 SENDURL        =      machine_data_pi/get
