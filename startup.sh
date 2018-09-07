@@ -16,7 +16,7 @@ echo "starting SNMP Service"
 /etc/init.d/snmpd restart
 
 #echo 'Fetching configuration from NIFI'
-python fetchConfiguration.py
+python fetchConfigurationPrd.py
 if [ $? -eq 0 ]
 then
   #echo 'Starting data collection from machine'
