@@ -4,7 +4,6 @@
 
 __author__     =      "Vikram Shelke"
 __credits__    =      ["Wipro Team", "Delphi Team"]
-__license__    =      "GPL"
 __version__    =      "1.2"
 __maintainer__ =      "Vikram Shelke"
 __email__      =      "vikram.shelke@wipro.com"
