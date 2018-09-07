@@ -1,4 +1,4 @@
-
+import os
 import ConfigParser
 logConfig = ConfigParser.ConfigParser()
 logConfig.readfp(open(r'logConfig.txt'))
