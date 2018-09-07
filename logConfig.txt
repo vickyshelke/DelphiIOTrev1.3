@@ -7,5 +7,5 @@ DELPHI_PORT    =      5557
 WIPRO_HOST     =      52.170.42.16
 WIPRO_PORT     =      5555
 LOGFILE        =      machineLog
-FETCHURL       =      fetch_dev_conf
+FETCHURL       =      fetch_prd_conf
 SENDURL        =      machine_data_pi/get
