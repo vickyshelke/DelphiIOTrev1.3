@@ -1,4 +1,3 @@
-
 import urllib3
 http = urllib3.PoolManager()
 import sys
@@ -54,7 +53,7 @@ except urllib3.exceptions.MaxRetryError as e:
 
 
 #log.debug('HTTP Send Status: ',r.status)
-#as output of r.data you should get something like:
+#as output of r.data you should get something like: 
 #config_data= [{"MAC": "B8:27:EB:66:0C:A9", "PIN": "16", "Machine": "TS065-4", "Facility": "IZM", "SignalID": "ECP", "DeviceType": "Raspberry PI", "DeviceModel": "IONO PI", "Logic": "Inverted", "MaxPartPerCycle": 4},
 #{"MAC": "B8:27:EB:66:0C:A9", "PIN": "19", "Machine": "TS065-4", "Facility": "IZM", "SignalID": "QSP", "DeviceType": "Raspberry PI", "DeviceModel": "IONO PI", "Logic": "Inverted", "MaxPartPerCycle": null}]
 
@@ -83,15 +82,16 @@ with open("machineConfig.txt", "w+") as myfile:
                 writeTomachineConfig = writeTomachineConfig + "DeviceType            = "+ config_data[0]['devicetype']+"\n"
         if any("pud" in d for d in config_data):
                 writeTomachineConfig = writeTomachineConfig + "PUD                   = "+ str(config_data[0]['pud'])+"\n"
-        if any("maxpartpercycle" in d for d in config_data):
-                writeTomachineConfig = writeTomachineConfig + "MaxPartPerCycle       = "+ str(config_data[0]['maxpartpercycle'])+"\n"
+        for maxpart in config_data:                         # this to extract max part per cycle for ECP
+                        if maxpart['signalid']=='ECP':
+                                        data=maxpart['maxpartpercycle']
+                                        writeTomachineConfig = writeTomachineConfig + "MaxPartPerCycle       = "+ str(data)+"\n"
         writeTomachineConfig = writeTomachineConfig + "TotalMachines         = " +str(len(machineCount))+"\n"
-
         myfile.write(writeTomachineConfig)
         for x in range(int(len(machineCount))):
                 data="MACHINE"+str(x+1)+"_NAME         = "+machineCount[x]+"\n"
                 myfile.write(data)
-
+                
                 #Parse Digital Inputs
                 goodbadPresent=0
                 for machine in config_data:
