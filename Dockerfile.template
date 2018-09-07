@@ -1,0 +1,26 @@
+FROM resin/%%RESIN_MACHINE_NAME%%-debian:latest
+#switch on systemd init system in container
+ENV INITSYSTEM on
+#add ntp installation
+#RUN apt-get install -yq ntp
+RUN apt-get -q update && apt-get install -yq --no-install-recommends \
+        vim \
+        git-core \
+        build-essential \
+        gcc \
+        python \
+        python-dev \
+        python-pip \
+        python-virtualenv \
+        snmpd \
+        snmp \
+&& apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN pip install pyserial
+RUN pip install RPi.GPIO
+RUN pip install urllib3
+RUN pip install pytz
+WORKDIR /usr/src/app
+COPY . ./
+
+
+CMD ["bash", "startup.sh"]
