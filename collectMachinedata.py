@@ -73,6 +73,8 @@ LOCATION=None
 Logic=''
 DeviceModel=''
 DeviceType=''
+DEVICENAME=''
+PUD=''
 for key, value in path_items:
         if 'DeviceName'in key:
                 DEVICENAME = value
@@ -134,7 +136,7 @@ LOGFILE=log_config.get('log-config','LOGFILE')
 SENDURL=log_config.get('log-config','SENDURL')
 log = logging.getLogger('')
 log.setLevel(logging.DEBUG)
-
+logging.getLogger("urllib3").setLevel(logging.ERROR)
 if LOG == 'True':
         log.disabled = False
 else :
@@ -257,10 +259,10 @@ def sendDataToDelphi(timestamp,machinename,data):
                 if data_send_from_machine_status==0:
                         log.error(" Not able to send data to Delphi Azure: Connection Error")
                 else:
-                        log.debug("HTTP send status : %d",data_send_from_machine_status)
+                        log.debug("HTTP send status to Delphi NiFi: %d",data_send_from_machine_status)
                 buffer.push(timestamp+" "+LOCATION+ " " + machinename +" "+data)
         else:
-                log.debug("HTTP send status : %d",data_send_from_machine_status)
+                log.debug("HTTP send status to Delphi NiFi: %d",data_send_from_machine_status)
 
 
 
@@ -279,10 +281,10 @@ def sendDataToWipro(timestamp,machinename,data):
                 if data_send_from_machine_status==0:
                         logging.error(" Not able to send data to wipro Azure : Connection Error")
                 else:
-                        logging.debug("HTTP send status : %d",data_send_from_machine_status)
+                        logging.debug("HTTP send status to Wipro NiFi : %d",data_send_from_machine_status)
                 wiprobuffer.push(timestamp+" "+LOCATION+ " " + machinename +" "+data)
         else:
-                logging.debug("HTTP send status : %d",data_send_from_machine_status)
+                logging.debug("HTTP send status  Wipro NiFi: %d",data_send_from_machine_status)
 
 
 
