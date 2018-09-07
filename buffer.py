@@ -1,4 +1,6 @@
 
+''' buffer is circular ring buffer implemented to store  machine data received during network downtime'''
+
 import ConfigParser
 logConfig = ConfigParser.ConfigParser()
 logConfig.readfp(open(r'logConfig.txt'))
