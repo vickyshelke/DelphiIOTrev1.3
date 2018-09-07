@@ -2,6 +2,7 @@
 ''' buffer is circular ring buffer implemented to store  machine data received during network downtime'''
 
 import ConfigParser
+import os
 logConfig = ConfigParser.ConfigParser()
 logConfig.readfp(open(r'logConfig.txt'))
 bufferSize = logConfig.get('log-config', 'BUFFER_SIZE')
