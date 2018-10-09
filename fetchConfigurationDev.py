@@ -35,7 +35,6 @@ macAddress=get_mac()
 log.debug('Fetching configuration from NiFi for Edge device:[%s]',macAddress)
 fields1={'MAC':macAddress}
 encoded_args = urllib.urlencode(fields1)
-#url = 'http://'+ HOST + ':5558/'+ FETCHURL + '?' + encoded_args
 url = 'http://'+ HOST + ':' + PORT + '/'+ FETCHURL + '?' + encoded_args
 
 try:
