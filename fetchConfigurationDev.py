@@ -8,7 +8,6 @@ import re
 import logging
 from logging.handlers import RotatingFileHandler
 from logging import handlers
-import ConfigParser
 from logConfig import *
 import json
 
