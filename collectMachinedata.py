@@ -32,14 +32,15 @@ import re
 from time import gmtime, strftime, sleep
 from logging.handlers import RotatingFileHandler
 from logging import handlers
-
+import string
+from  logConfig import *
 #Check python version here and confirm if this code is reqiuired
 #for python 3
 #from urllib.parse import urlencode
 
 http = urllib3.PoolManager()
 q=Queue.Queue(maxsize=10) # que to hold messages temporary
-wiproq=Queue.Queue(maxsize=10)
+
 
 
 #------------------global arrays to hold each machine information -------------------------------------------------- 
@@ -54,9 +55,8 @@ send_message=[]                             #  every machine has seprate send me
 machine_good_badpart_pinvalue=[]            #  this hold good/bad part pin values
 machine_cycle_risingEdge_detected=[]        #   this hold rising edges for ECP
 machine_cycle_pinvalue=[]                   # this checks validity of machine cycle pulse  for each machine
-
-
-
+messageinbuffer=0
+buffered=False
 
 #------------------------------------------------------------------------------------------------------------------
 
@@ -72,8 +72,8 @@ LOCATION=None
 Logic=''
 DeviceModel=''
 DeviceType=''
-DEVICENAME=''
 PUD=''
+DEVICENAME=''
 for key, value in path_items:
         if 'DeviceName'in key:
                 DEVICENAME = value
@@ -102,9 +102,9 @@ for key, value in path_items:
 
 #Change Logic as per device
 
-if Logic == 'Inverted': #For IONO PI and DIN Pi, check event is 1
+if Logic == 'Inverted': #For kristek and RPI
         VerificationLogic = 0
-else : #For Piegon PI and Raspberry Pi, check event is 0
+else : #For Iono PI siskon PI,din RPI
         VerificationLogic = 1
 
 #----------------------------------------------------------------------------------------------------------------------
@@ -123,26 +123,16 @@ for k in range (totalMachines):
 
 #---------------------------------------------------  log mechanism  configuration ------------------------------------
 
-
-log_config = ConfigParser.ConfigParser()
-log_config.readfp(open(r'logConfig.txt'))
-LOG= log_config.get('log-config', 'LOG_ENABLE')
-HOST=log_config.get('log-config', 'DELPHI_HOST')
-PORT=log_config.get('log-config', 'DELPHI_PORT')
-WIPROHOST=log_config.get('log-config', 'WIPRO_HOST')
-WIPROPORT=log_config.get('log-config', 'WIPRO_PORT')
-LOGFILE=log_config.get('log-config','LOGFILE')
-SENDURL=log_config.get('log-config','SENDURL')
 log = logging.getLogger('')
 log.setLevel(logging.DEBUG)
-logging.getLogger("urllib3").setLevel(logging.ERROR)
-if LOG == 'True':
+logging.getLogger("urllib3").setLevel(logging.WARNING)
+if LOG_ENABLE == 'True':
         log.disabled = False
 else :
         log.disabled=True
 
 
-# write to coonsle screen
+# write to console screen
 #formatter_stdout = logging.Formatter("%(asctime)s %(levelname)s - %(message)s")
 formatter_stdout = logging.Formatter("%(levelname)s - %(message)s")
 log_stdout = logging.StreamHandler(sys.stdout)
@@ -150,7 +140,7 @@ log_stdout.setFormatter(formatter_stdout)
 log.addHandler(log_stdout)
 #use %(lineno)d for printnig line  no
 
-# write logs to file with rotating file handler which keeps file size limited 
+# write logs to fileLOGFILE with rotating file handler which keeps file size limited 
 
 formatter_file = logging.Formatter('%(asctime)s %(levelname)s %(message)s',"%Y-%m-%d %H:%M:%S")
 #formatter_file = logging.Formatter("%(asctime)s %(levelname)s - %(message)s")
@@ -234,6 +224,26 @@ class Machine:
                         return 0
 
 
+
+
+'''------------------------------------------------------------------------------------------------
+create backup of old data in timestamp.txt
+now copy previous timestamp of messages (first and last)as old timestamp to make it old data 
+
+----------------------------------------------------------------------------------------------------'''
+with open('timestamp.txt', 'r') as f:
+    # read a list of lines into data
+    filedata = f.readlines()
+
+# 
+filedata[2]=filedata[0].replace('after latest','on previous')
+filedata[3]=filedata[1].replace('after latest','on previous')
+filedata[0]='TimeStamp of first MCP received after latest reboot:0120-00-00T00:00:00.300+00:00\n'
+filedata[1]='TimeStamp of last MCP  received after latest reboot:0180-00-00T00:00:00.000+00:00\n'
+# and write everything back
+with open('timestamp.txt', 'w') as fd:
+    fd.writelines( filedata )
+
 #-------------------------------------------------------------------------------------------------------------------------------
 '''
  send data function is used to send data to NiFi
@@ -246,6 +256,7 @@ class Machine:
 
 def sendDataToDelphi(timestamp,machinename,data):
         data_send_from_machine_status=0
+        global messageinbuffer
         fields={'ts':timestamp,'loc':LOCATION,'mach':machinename,'data':data}
         encoded_args = urllib.urlencode(fields)
         url = 'http://' + HOST + ':' + PORT + '/' + SENDURL +'?' + encoded_args
@@ -258,36 +269,10 @@ def sendDataToDelphi(timestamp,machinename,data):
                 if data_send_from_machine_status==0:
                         log.error(" Not able to send data to Delphi Azure: Connection Error")
                 else:
-                        log.debug("HTTP send status to Delphi NiFi: %d",data_send_from_machine_status)
-                buffer.push(timestamp+" "+LOCATION+ " " + machinename +" "+data)
-        else:
-                log.debug("HTTP send status to Delphi NiFi: %d",data_send_from_machine_status)
-
-
-
-def sendDataToWipro(timestamp,machinename,data):
-        data_send_from_machine_status=0
-        fields={'ts':timestamp,'loc':LOCATION,'mach':machinename,'data':data}
-        encoded_args = urllib.urlencode(fields)
-        url1 = 'http://' + WIPROHOST + ':' + WIPROPORT + '/get?' + encoded_args
-        logging.debug(url1)
-        try:
-                r = http.request('GET', url1,timeout=2.0)
-                data_send_from_machine_status=r.status
-        except urllib3.exceptions.MaxRetryError as e:
-                data_send_from_machine_status=0
-        if data_send_from_machine_status != 200 :
-                if data_send_from_machine_status==0:
-                        logging.error(" Not able to send data to wipro Azure : Connection Error")
-                else:
-                        logging.debug("HTTP send status to Wipro NiFi : %d",data_send_from_machine_status)
-                wiprobuffer.push(timestamp+" "+LOCATION+ " " + machinename +" "+data)
-        else:
-                logging.debug("HTTP send status  Wipro NiFi: %d",data_send_from_machine_status)
-
-
-
-
+                        log.debug("HTTP send status to Delphi : %d",data_send_from_machine_status)        
+                buffer.push(timestamp+"||"+LOCATION+ "||" + machinename +"||"+data)
+        else:        
+            log.debug("HTTP send status to Delphi NiFi: %d",data_send_from_machine_status)
 
 
 #---------------------------------------------------------------------------------------------------------------------------------------
@@ -305,21 +290,6 @@ def NiFiconnectionStatus_Delphi():
                 return str(r.status)
         except:
                 return False
-
-
-def NiFiconnectionStatus_Wipro():
-        url1 = 'http://' + WIPROHOST + ':' + WIPROPORT + '/get?'
-        try:
-                
-                r = http.request('GET', url1,timeout=2.0) 
-        #log.debug("returnig true")
-                return str(r.status)
-        except:
-    #   log.debug("returnig false---------------")
-                return False
-
-
-
 
 
 
@@ -377,21 +347,20 @@ def plcMachine10(channel):
 def process_machine_data(machineNo):
 
         global q
-        global wiproq
-        time.sleep(0.1)
         if (GPIO.input(machineCycleSignal[machineNo])==VerificationLogic): # dry contact closed on machine cycle pin
                 if machine_cycle_risingEdge_detected[machineNo] == 0:
                         machine_cycle_risingEdge_detected[machineNo] = 1
                         log.debug ("Rising edge : %s Cycle Signal ",machineName[machineNo])
                         machineobject[machineNo].machine_cycle_starttime()
                         if machineGoodbadPartSignal[machineNo]==0:
+                                machine_good_badpart_pinvalue[machineNo]=-1
                                 #print "no goodbad part"
                                 pass
                         else:
                                 if (GPIO.input(machineGoodbadPartSignal[machineNo])==VerificationLogic): # check value of good_badpart_signal and set it to 1 if ok
-                                        machine_good_badpart_pinvalue[machineNo]=1
-                                else: #good_badpart is not ok
                                         machine_good_badpart_pinvalue[machineNo]=0
+                                else: #good_badpart is not ok
+                                        machine_good_badpart_pinvalue[machineNo]=1
                 else:
                         log.debug ("Multiple Rising Edge detected on %s", machineName[machineNo])
         else: # dry contact opend falling edge detected for machine_cycle pin
@@ -403,23 +372,22 @@ def process_machine_data(machineNo):
                         machine_cycle_pinvalue[machineNo]=machineobject[machineNo].machine_cycle_pulseTime(machineName[machineNo])
                         if machine_cycle_pinvalue[machineNo]==1:
                                 if machineGoodbadPartSignal[machineNo]==0:
-                                        #print "no goodbad part"
+                                         
+                                        machine_good_badpart_pinvalue[machineNo]=-1   # "no goodbad part" set quality as -1
                                         pass
                                 else:
                                         if(GPIO.input(machineGoodbadPartSignal[machineNo])==VerificationLogic): # valid pulse
-                                                machine_good_badpart_pinvalue[machineNo]=1
+                                                machine_good_badpart_pinvalue[machineNo]=0            #good part
                                         else:
-                                                machine_good_badpart_pinvalue[machineNo]=0
+                                                machine_good_badpart_pinvalue[machineNo]=1            # bad part
                                 #try:
                                 #        lock.acquire()
                                 finalmessage[machineNo]="Quality"+":"+str(machine_good_badpart_pinvalue[machineNo])
-                                log.debug(finalmessage[machineNo])
-                                send_message[machineNo]=machine_cycle_timestamp[machineNo]+" "+machineName[machineNo]+" "+finalmessage[machineNo]
+                                log.debug("%s ----> %s",machineName[machineNo],finalmessage[machineNo])
+                                send_message[machineNo]=machine_cycle_timestamp[machineNo]+"||"+machineName[machineNo]+"||"+finalmessage[machineNo]
                                 q.put(send_message[machineNo])
                                 q.task_done()
-                                wiproq.put(send_message[machineNo])
-                                
-                                wiproq.task_done()
+                              
                         else:
                                 log.debug(" %s cycle pulse width is invalid",machineName[machineNo])
                 machineobject[machineNo].machine_cycle_cleartime()
@@ -469,34 +437,26 @@ for m in range (totalMachines):
 def machineData(q):
         log.debug(" Machine thread for sending data to Delphi Azure started ")
         messagesSinceLastReboot=0
-        fd = open("machineCount.txt", "w+")
-        fd.write ('TimeStamp of first MachineCycle signal received :0000-00-00T00:00:00.000+00:00 \n')
-        #fd.write(str(totalMessage))
-        fd.close()
         while True:
                 data=q.get()  #wait until data is avalable  in que
                 messagesSinceLastReboot= messagesSinceLastReboot+1
                 log.info("machine Cycle signal received since last Reboot :%d",messagesSinceLastReboot)
-                dataToSend=data.split()
+                
+                dataToSend=data.split("||")
+                with open("timestamp.txt", "r") as file: 
+                        filedata=file.readlines() 
                 if messagesSinceLastReboot==1:        
-                        log.debug("writing timestamp")
-                        with open("machineCount.txt", "r+") as file: 
-                                file.write ('TimeStamp of first MachineCycle signal received :'+str(dataToSend[0]))  
+                        #log.debug("writing timestamp")
+                    filedata[0]='timestamp of first MCP received after latest Reboot:'+ dataToSend[0]+'\n'
+                else:
+                      
+                        filedata[1]= 'timestamp of last MCP received after latest Reboot:'+ dataToSend[0]+'\n'
+                with open('timestamp.txt', 'w') as file:
+                    file.writelines( filedata )                    
+
+
                 sendDataToDelphi(dataToSend[0],dataToSend[1],dataToSend[2])
         log.debug("machine data thread for Delphi Azure exited")
-
-
-def machineDatatowipro(wiproq):
-        logging.debug("machine thread for sending data to Wipro azure started ")
-        
-        while True:
-                dataw=wiproq.get()
-                dataToSendwipro=dataw.split()
-                sendDataToWipro(dataToSendwipro[0],dataToSendwipro[1],dataToSendwipro[2])
-        logging.debug("machine data thread for Wipro Azure exited")
-
-
-
 
 
 #------------------------------------------------------------------------------------------------------------------------------------------
@@ -509,42 +469,25 @@ def machineDatatowipro(wiproq):
 
 
 t = threading.Thread(name = "sendDataThread", target=machineData, args=(q,))
-twipro = threading.Thread(name = "sendDataThread", target=machineDatatowipro, args=(wiproq,))
-t.start()
-twipro.start()
 
+t.start()
 log.debug("Data collection started")
 try:
         while True:
                 if NiFiconnectionStatus_Delphi()=='200':
                         log.debug( " Connection status to Delphi NiFi for edge device[%s] : CONNECTED ",str(get_mac()))
-                        data=buffer.pop().rstrip()
-                        if data!="-1":
-                                while data!="-1":
-                                        dataTosend=data.split()
-                                        if len(dataTosend)!=0:
-                                                sendDataToDelphi(dataTosend[0],dataTosend[2],dataTosend[3])
-                                                time.sleep(3)
-                                                data=buffer.pop().rstrip()
+
+                        while buffer.empty() !=-1 and NiFiconnectionStatus_Delphi()=='200':
+                            data=buffer.pop().rstrip() 
+                            #log.debug(data)   
+                            dataTosend=data.split("||")
+                           # log.debug(dataTosend)
+                            if len(dataTosend)!= 0:                           
+                                sendDataToDelphi(dataTosend[0],dataTosend[2],dataTosend[3])
+                                time.sleep(3)    
+
                 else:
                         log.error(" Connection status to Delphi NiFi : NO NETWORK ")
-
-                if NiFiconnectionStatus_Wipro()=='200':
-                        logging.debug( " Connection status to wipro NiFi for edge device[%s]: CONNECTED ",str(get_mac()))
-                        #logging.debug("MAC address of Edge Device: %s", str(get_mac()))
-                        data1=wiprobuffer.pop().rstrip()
-                        if data1!="-1":
-                                while data1!="-1":
-                                        dataTosendwipro=data1.split()
-                                        if len(dataTosendwipro)!=0:
-                        #log.debug("sending data to wipro")
-                                                sendDataToWipro(dataTosendwipro[0],dataTosendwipro[2],dataTosendwipro[3])
-                                                time.sleep(3)
-                        
-                                                data1=wiprobuffer.pop().rstrip() # this is breaking inner while condition
-                else:
-                        logging.error(" Connection status to wipro NiFi : NO NETWORK ")
-
 
                 time.sleep(60)
 
@@ -552,3 +495,4 @@ try:
 except KeyboardInterrupt:
         log.debug(" Quit ")
         GPIO.cleanup()
+
