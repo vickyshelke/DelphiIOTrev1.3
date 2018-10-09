@@ -1,18 +1,17 @@
 
 ''' buffer is circular ring buffer implemented to store  machine data received during network downtime'''
 
-import ConfigParser
 import os
-logConfig = ConfigParser.ConfigParser()
-logConfig.readfp(open(r'logConfig.txt'))
-bufferSize = logConfig.get('log-config', 'BUFFER_SIZE')
+from logconfig import *
+
 FILENAME="BUFFER"
 BUFFER_SIZE=0
-if int(bufferSize) > 10000:
+
+if int(BUF_SIZE) > 10000:
 #        print "size of buffer exceeded setting it to default"
         BUFFER_SIZE = 10000
 else :
-        BUFFER_SIZE=int(bufferSize)
+        BUFFER_SIZE=int(BUF_SIZE)
 
 def string_conditioned(string):
     return string.decode('string_escape').rstrip() + '\n'
@@ -26,6 +25,13 @@ def pop():
             return ''.join(rows[:n])
     else:
         return "-1"
+def empty():
+	if os.stat(FILENAME).st_size >1:
+		pass
+	else:
+		return -1
+
+
 def trim_buffer(row):
     size = int(BUFFER_SIZE)
     with open(FILENAME, 'rU') as fd:
@@ -40,4 +46,4 @@ def push(row):
     with open(FILENAME, 'a') as fd:
         fd.write(string_conditioned(row))
     return ''
-#Use push("shelke") print (pop().rstrip())
+#Use push("string") print (pop().rstrip())
