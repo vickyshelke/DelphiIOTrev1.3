@@ -1,4 +1,4 @@
-timestamp of first MCP received after latest Reboot:0000-00-00T00:00:00.000+00:00
-timestamp of last MCP received after latest Reboot:0000-00-00T00:00:00.000+00:00
-timestamp of first MCP received on previous Reboot:0000-00-00T00:00:00.000+00:00
-timestamp of last MCP received on previous Reboot:0000-00-00T00:00:00.000+00:00
+timestamp of first ECP received after latest Reboot:0000-00-00T00:00:00.000+00:00
+timestamp of last ECP received after latest Reboot:0000-00-00T00:00:00.000+00:00
+timestamp of first ECP received on previous Reboot:0000-00-00T00:00:00.000+00:00
+timestamp of last ECP received on previous Reboot:0000-00-00T00:00:00.000+00:00
