@@ -23,7 +23,6 @@ import sys
 import ConfigParser
 import uuid
 import buffer
-import wiprobuffer
 import Queue
 #for python 2
 import urllib
@@ -238,8 +237,8 @@ with open('timestamp.txt', 'r') as f:
 # 
 filedata[2]=filedata[0].replace('after latest','on previous')
 filedata[3]=filedata[1].replace('after latest','on previous')
-filedata[0]='TimeStamp of first MCP received after latest reboot:0120-00-00T00:00:00.300+00:00\n'
-filedata[1]='TimeStamp of last MCP  received after latest reboot:0180-00-00T00:00:00.000+00:00\n'
+filedata[0]='TimeStamp of first ECP received after latest reboot:0120-00-00T00:00:00.300+00:00\n'
+filedata[1]='TimeStamp of last ECP  received after latest reboot:0180-00-00T00:00:00.000+00:00\n'
 # and write everything back
 with open('timestamp.txt', 'w') as fd:
     fd.writelines( filedata )
@@ -447,10 +446,10 @@ def machineData(q):
                         filedata=file.readlines() 
                 if messagesSinceLastReboot==1:        
                         #log.debug("writing timestamp")
-                    filedata[0]='timestamp of first MCP received after latest Reboot:'+ dataToSend[0]+'\n'
+                    filedata[0]='timestamp of first ECP received after latest Reboot:'+ dataToSend[0]+'\n'
                 else:
                       
-                        filedata[1]= 'timestamp of last MCP received after latest Reboot:'+ dataToSend[0]+'\n'
+                        filedata[1]= 'timestamp of last ECP received after latest Reboot:'+ dataToSend[0]+'\n'
                 with open('timestamp.txt', 'w') as file:
                     file.writelines( filedata )                    
 
