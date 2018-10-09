@@ -1,29 +1,25 @@
 #!/bin/sh
+
 SERVICE='snmpd'
- 
-if ps ax | grep -v grep | grep $SERVICE > /dev/null
-then
-   echo "$SERVICE service is running"
-   /etc/init.d/snmpd stop
-else
-   echo "$SERVICE is not running"
+# copy snmpd.conf with appropriate setting to Default location
+cp $SERVICE.conf /etc/snmp/$SERVICE.conf
+#echo "starting $SERVICE service"
+if [ $? -eq 0 ]; then
+/etc/init.d/$SERVICE restart
+if [ $? -eq 0 ]; then
+echo "$SERVICE started successfully"
 fi
-   
-# copy snmpd.conf with appropriate setting to sefault location
-cp snmpd.conf /etc/snmp/snmpd.conf
 
-echo "starting SNMP Service"
-/etc/init.d/snmpd restart
-
+fi
 #echo 'Fetching configuration from NIFI'
 python fetchConfigurationDev.py
 if [ $? -eq 0 ]
 then
-  #echo 'Starting data collection from machine'
-  python collectMachinedata.py
-
+#echo 'Starting data collection from machine'
+python collectMachinedata.py
 else
-  echo "Problem in fetching configuration" 
-  exit 1
+echo "Problem in fetching configuration"
+exit 1
 fi
+
 
