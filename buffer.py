@@ -2,7 +2,7 @@
 ''' buffer is circular ring buffer implemented to store  machine data received during network downtime'''
 
 import os
-from logconfig import *
+from logConfig import *
 
 FILENAME="BUFFER"
 BUFFER_SIZE=0
