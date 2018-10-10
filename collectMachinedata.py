@@ -480,7 +480,7 @@ try:
                             data=buffer.pop().rstrip() 
                             #log.debug(data)   
                             dataTosend=data.split("||")
-                           # log.debug(dataTosend)
+                            log.debug(dataTosend)
                             if len(dataTosend)!= 0:                           
                                 sendDataToDelphi(dataTosend[0],dataTosend[2],dataTosend[3])
                                 time.sleep(3)    
