@@ -226,6 +226,32 @@ class Machine:
 
 
 
+# -------------------------------------------------------------------------------------------------------------------------------------------
+'''
+   get_mac function extract the mac address from system 
+
+'''
+#--------------------------------------------------------------------------------------------------------------------------------
+
+def get_mac():
+        mac = ':'.join(re.findall('..', '%012x' % uuid.getnode()))
+        return mac
+
+macAddress=str(get_mac())
+
+
+#### form request 
+
+fields1={'MAC':macAddress}
+encoded_args = urllib.urlencode(fields1)
+url = 'http://'+ HOST + ':' + PORT + '/'+ FETCHURL + '?' + encoded_args
+
+
+
+
+
+
+
 
 '''------------------------------------------------------------------------------------------------
 create backup of old data in timestamp.txt
@@ -262,7 +288,7 @@ def sendDataToDelphi(timestamp,machinename,data):
         encoded_args = urllib.urlencode(fields)
         url = 'http://' + HOST + ':' + PORT + '/' + SENDURL +'?' + encoded_args
         try:
-                r = http.request('GET', url,timeout=0.2)
+                r = http.request('GET', url,timeout=1.0)
                 data_send_from_machine_status=r.status
         except urllib3.exceptions.MaxRetryError as e:
                 data_send_from_machine_status=0
@@ -285,9 +311,9 @@ function to check network connectivity to Delphi NiFi
 
 def NiFiconnectionStatus_Delphi():
         
-        conn_url = 'http://' + HOST + ':' + PORT + '/' + SENDURL +'?'
+#        conn_url = 'http://' + HOST + ':' + PORT + '/' + SENDURL +'?'
         try:
-                r = http.request('GET', conn_url,timeout=0.2)    
+                r = http.request('GET',url,timeout=2.0)    
                 return str(r.status)
         except:
                 return False
@@ -300,19 +326,18 @@ def detectedEvent(machineNo):
     queueLock.acquire()
     event=''
     if (GPIO.input(machineCycleSignal[machineNo])!=VerificationLogic):
-        #if flaglist[machineNo]==1:
+        if flaglist[machineNo]==1:
             event= 'Falling'
             machineobject[machineNo].machine_cycle_stoptime()
-         #   flaglist[machineNo]=0
+            flaglist[machineNo]=0
             workque[machineNo].put(event) 
     else:
-        #if flaglist[machineNo]==0:
+        if flaglist[machineNo]==0:
             event= 'Rising'
             machineobject[machineNo].machine_cycle_starttime()
-         #   flaglist[machineNo]=1
+            flaglist[machineNo]=1
             workque[machineNo].put(event) 
     queueLock.release()
-
 
 
 
@@ -370,7 +395,7 @@ def process_machine_data(machineNo):
         global q
         global workque
         global messagesSinceLastReboot
-        #log.debug("data collection started for %s",machineName[machineNo])
+        log.debug("data collection started for %s",machineName[machineNo])
         while True:
             LOGIC= workque[machineNo].get()  
           
@@ -431,24 +456,9 @@ def process_machine_data(machineNo):
                             sendDataToDelphi(machine_cycle_timestamp[machineNo],machineName[machineNo],finalmessage[machineNo])
                                 
                         else:
-                                log.debug(" %s cycle pulse width is invalid",machineName[machineNo])
+                                log.debug("%s cycle pulse width is invalid",machineName[machineNo])
                 machineobject[machineNo].machine_cycle_cleartime()
                 threadlock.release()    
-
-
-# -------------------------------------------------------------------------------------------------------------------------------------------
-'''
-   get_mac function extract the mac address from system 
-
-'''
-#--------------------------------------------------------------------------------------------------------------------------------
-
-def get_mac():
-        mac = ':'.join(re.findall('..', '%012x' % uuid.getnode()))
-        return mac
-
-mac=str(get_mac())
-
 
 
 
@@ -491,7 +501,7 @@ log.debug("Data collection started")
 try:
         while True:
                 if NiFiconnectionStatus_Delphi()=='200':
-                        log.debug( " Connection status to Delphi NiFi for edge device[%s] : CONNECTED ",str(get_mac()))
+                        log.debug( "Connection status to Delphi NiFi for edge device[%s] : CONNECTED ",str(get_mac()))
 
                         while buffer.empty() !=-1 and NiFiconnectionStatus_Delphi()=='200':
                             data=buffer.pop().rstrip() 
@@ -503,7 +513,7 @@ try:
                                 time.sleep(1)    
 
                 else:
-                        log.error(" Connection status to Delphi NiFi : NO NETWORK ")
+                        log.error("Connection status to Delphi NiFi : NO NETWORK ")
 
                 time.sleep(60)
 
