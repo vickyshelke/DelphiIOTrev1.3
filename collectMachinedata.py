@@ -1,4 +1,3 @@
-
 ''' Software to gather Plc data from Delphi factory shops as a part of Delphi IOT '''
 
 __credits__    =      ["Wipro Team", "Delphi Team"]
@@ -52,7 +51,7 @@ send_message=[]                             #  every machine has seprate send me
 machine_good_badpart_pinvalue=[]            #  this hold good/bad part pin values
 machine_cycle_risingEdge_detected=[]        #   this hold Rising edges for ECP
 machine_cycle_pinvalue=[]                   # this checks validity of machine cycle pulse  for each machine
-#messageinbuffer=0
+messageinbuffer=0
 buffered=False
 thread_list = []
 messagesSinceLastReboot=0
@@ -236,11 +235,11 @@ def get_mac():
         return mac
 
 #macAddress=str(get_mac())
-Address=12
+macAddress=12
 
 #### form request 
 
-fields1={'MAC':Address}
+fields1={'MAC':macAddress}
 encoded_args = urllib.urlencode(fields1)
 url = 'http://'+ HOST + ':' + PORT + '/'+'nifi_heartbeat' + '?' + encoded_args
 
@@ -291,17 +290,17 @@ def sendDataToDelphi(timestamp,machinename,data):
                 data_send_from_machine_status=r.status
         except urllib3.exceptions.MaxRetryError as e:
                 error=e
-        data_send_from_machine_status=0
-    except urllib3.exceptions.ProtocolError as e:
+                data_send_from_machine_status=0
+        except urllib3.exceptions.ProtocolError as e:
                 error=e
-            data_send_from_machine_status=0
+                data_send_from_machine_status=0
         except urllib3.exceptions.ConnectTimeoutError as e:
                 error=e
                 data_send_from_machine_status=0
-    except urllib3.exceptions.ReadTimeoutError as e:
-        error=e
-        data_send_from_machine_status=0
-    if data_send_from_machine_status != 200 :
+        except urllib3.exceptions.ReadTimeoutError as e:
+                error=e
+                data_send_from_machine_status=0
+        if data_send_from_machine_status != 200 :
                 if data_send_from_machine_status==0:
                         log.error("Not able to send data to Nifi: %s",e)
                 else:
@@ -403,7 +402,7 @@ def process_machine_data(machineNo):
 
         global q
         global workque
-    global flaglist
+        global flaglist
         global messagesSinceLastReboot
 #        log.debug("data collection started for %s",machineName[machineNo])
 
@@ -427,7 +426,7 @@ def process_machine_data(machineNo):
                 #else:
                  #       log.debug ("Multiple Rising Edge detected on %s", machineName[machineNo])
         
-        time.sleep(3.2)
+                time.sleep(3.2)
                 while True:
                     if(GPIO.input(machineCycleSignal[machineNo])!=VerificationLogic):
                         break
