@@ -1,13 +1,8 @@
-
-''' Software to gather Plc data from Delphi factory shops as a part of Delphi IOT '''
-
-
-__author__     =      "Vikram Shelke"
 __credits__    =      ["Wipro Team", "Delphi Team"]
 __version__    =      "1.2"
 __maintainer__ =      "Vikram Shelke"
 __email__      =      "vikram.shelke@wipro.com"
-__date__       =      "23/08/2018"
+__date__       =      "23/10/2018"
 __status__     =      "Production" 
 
 
@@ -134,7 +129,7 @@ else :
 
 
 # write to console screen
-#formatter_stdout = logging.Formatter("%(asctime)s %(levelname)s - %(message)s")
+#formatter_stdout = logging.Formatter("%(asctime)s %(levelname)s - %(message)s","%Y-%m-%d %H:%M:%S")
 formatter_stdout = logging.Formatter("%(levelname)s - %(message)s")
 log_stdout = logging.StreamHandler(sys.stdout)
 log_stdout.setFormatter(formatter_stdout)
@@ -217,7 +212,7 @@ class Machine:
 
         def machine_cycle_pulseTime(self,machinename):
                 self.machinename=machinename
-                self.machine_cycle_pulse_time=self.machine_cycle_falling_edge-self.machine_cycle_rising_edge
+                self.machine_cycle_pulse_time=self.machine_cycle_falling_edge-(self.machine_cycle_rising_edge+0.2)
                 log.debug ("Total Duration of MACHINE CYCLE SIGNAL for %s :%s ",machinename,str(self.machine_cycle_pulse_time))
                 if self.machine_cycle_pulse_time >=2 and self.machine_cycle_pulse_time <= 4 :
                         return 1
@@ -237,14 +232,14 @@ def get_mac():
         mac = ':'.join(re.findall('..', '%012x' % uuid.getnode()))
         return mac
 
-macAddress=str(get_mac())
-
+#macAddress=str(get_mac())
+macAddress=12
 
 #### form request 
 
 fields1={'MAC':macAddress}
 encoded_args = urllib.urlencode(fields1)
-url = 'http://'+ HOST + ':' + PORT + '/'+ FETCHURL + '?' + encoded_args
+url = 'http://'+ HOST + ':' + PORT + '/'+'nifi_heartbeat' + '?' + encoded_args
 
 
 
@@ -283,23 +278,39 @@ with open('timestamp.txt', 'w') as fd:
 
 def sendDataToDelphi(timestamp,machinename,data):
         data_send_from_machine_status=0
-        global messageinbuffer
         fields={'ts':timestamp,'loc':LOCATION,'mach':machinename,'data':data}
         encoded_args = urllib.urlencode(fields)
+        error=''
         url = 'http://' + HOST + ':' + PORT + '/' + SENDURL +'?' + encoded_args
+        urlazure= 'http://' + HOST + ':' + '7777' + '/' + 'simulator'+'?'
         try:
                 r = http.request('GET', url,timeout=1.0)
                 data_send_from_machine_status=r.status
         except urllib3.exceptions.MaxRetryError as e:
+                error=e
+        data_send_from_machine_status=0
+    except urllib3.exceptions.ProtocolError as e:
+                error=e
+            data_send_from_machine_status=0
+        except urllib3.exceptions.ConnectTimeoutError as e:
+                error=e
                 data_send_from_machine_status=0
-        if data_send_from_machine_status != 200 :
+    except urllib3.exceptions.ReadTimeoutError as e:
+        error=e
+        data_send_from_machine_status=0
+    if data_send_from_machine_status != 200 :
                 if data_send_from_machine_status==0:
-                        log.error(" Not able to send data to Delphi Azure: Connection Error")
+                        log.error("Not able to send data to Nifi: %s",e)
                 else:
                         log.debug("HTTP send status to Delphi : %d",data_send_from_machine_status)        
                 buffer.push(timestamp+"||"+LOCATION+ "||" + machinename +"||"+data)
+                azure=http.request('GET',urlazure,timeout=2.0,retries=False)
+                if azure.status==200:
+                    log.debug("Delphi azure connection Status :%d OK",azure.status)
+                else:
+                    log.debug("Delphi azure connection Status : Network Error")
         else:        
-            log.debug("HTTP send status to Delphi NiFi: %d",data_send_from_machine_status)
+                log.debug("HTTP send status to Delphi NiFi: %d",data_send_from_machine_status)
 
 
 #---------------------------------------------------------------------------------------------------------------------------------------
@@ -313,7 +324,7 @@ def NiFiconnectionStatus_Delphi():
         
 #        conn_url = 'http://' + HOST + ':' + PORT + '/' + SENDURL +'?'
         try:
-                r = http.request('GET',url,timeout=2.0)    
+                r = http.request('GET',url,timeout=1.0,retries=False)    
                 return str(r.status)
         except:
                 return False
@@ -323,24 +334,13 @@ def NiFiconnectionStatus_Delphi():
 
 def detectedEvent(machineNo):
     global flaglist
-    queueLock.acquire()
-    event=''
-    if (GPIO.input(machineCycleSignal[machineNo])!=VerificationLogic):
-        if flaglist[machineNo]==1:
-            event= 'Falling'
-            machineobject[machineNo].machine_cycle_stoptime()
-            flaglist[machineNo]=0
-            workque[machineNo].put(event) 
-    else:
-        if flaglist[machineNo]==0:
-            event= 'Rising'
-            machineobject[machineNo].machine_cycle_starttime()
-            flaglist[machineNo]=1
-            workque[machineNo].put(event) 
-    queueLock.release()
-
-
-
+    #queueLock.acquire()
+    event='Rising'
+    if flaglist[machineNo]==0:
+        flaglist[machineNo]=1
+#       log.debug("TRANISITION To HIGH LEVEL")  
+        workque[machineNo].put(event) 
+ #   queueLock.release()
 
 
 ##plc machine 1 data collection
@@ -376,7 +376,13 @@ def plcMachine9(channel):
         
 def plcMachine10(channel):
     detectedEvent(9)
-        
+
+
+
+
+
+
+
 
 
 #------------------------------------------------------------------------------------------------------------------------------
@@ -394,71 +400,80 @@ def process_machine_data(machineNo):
 
         global q
         global workque
+    global flaglist
         global messagesSinceLastReboot
-        log.debug("data collection started for %s",machineName[machineNo])
+#        log.debug("data collection started for %s",machineName[machineNo])
+
         while True:
-            LOGIC= workque[machineNo].get()  
-          
-            if LOGIC=='Rising': # dry contact closed on machine cycle pin
-                if machine_cycle_risingEdge_detected[machineNo] == 0:
-                    machine_cycle_risingEdge_detected[machineNo] = 1
-                    log.debug ("Rising edge : %s Cycle Signal ",machineName[machineNo])
-                    #machineobject[machineNo].machine_cycle_starttime()
-                    if machineGoodbadPartSignal[machineNo]==0:
-                        machine_good_badpart_pinvalue[machineNo]=-1
+                LOGIC= workque[machineNo].get()  
+                #log.debug("HIGH level detected") 
+            #if LOGIC=='Rising': # dry contact closed on machine cycle pin
+                #if machine_cycle_risingEdge_detected[machineNo] == 0:
+                 #   machine_cycle_risingEdge_detected[machineNo] = 1
+                log.debug ("Rising edge : %s Cycle Signal ",machineName[machineNo])
+                machineobject[machineNo].machine_cycle_starttime()
+                if machineGoodbadPartSignal[machineNo]==0:
+                    machine_good_badpart_pinvalue[machineNo]=-1
                         #print "no goodbad part
                         #pass
-                    else:
-                        if (GPIO.input(machineGoodbadPartSignal[machineNo])==VerificationLogic): # check value of good_badpart_signal and set it to 1 if ok
-                            machine_good_badpart_pinvalue[machineNo]=0
-                        else: #good_badpart is not ok
-                            machine_good_badpart_pinvalue[machineNo]=1
                 else:
-                        log.debug ("Multiple Rising Edge detected on %s", machineName[machineNo])
+                    if (GPIO.input(machineGoodbadPartSignal[machineNo])==VerificationLogic): # check value of good_badpart_signal and set it to 1 if ok
+                        machine_good_badpart_pinvalue[machineNo]=0
+                    else: #good_badpart is not ok
+                        machine_good_badpart_pinvalue[machineNo]=1
+                #else:
+                 #       log.debug ("Multiple Rising Edge detected on %s", machineName[machineNo])
         
-            else: # dry contact opend Rising edge detected for machine_cycle pin
-                threadlock.acquire()
-                if machine_cycle_risingEdge_detected[machineNo] == 1:
-                        log.debug ("Falling edge : %s Cycle Signal ",machineName[machineNo])
+        time.sleep(3.2)
+                while True:
+                    if(GPIO.input(machineCycleSignal[machineNo])!=VerificationLogic):
+                        break
+            #else: # dry contact opend Rising edge detected for machine_cycle pin
+                #if (GPIO.input(machineCycleSignal[machineNo])!=VerificationLogic):
+#                log.debug("LOW level detected ")
+                    #if machine_cycle_risingEdge_detected[machineNo] == 1:
+                log.debug ("Falling edge : %s Cycle Signal ",machineName[machineNo])
                         
-                        #machineobject[machineNo].machine_cycle_stoptime()
-                        machine_cycle_risingEdge_detected[machineNo]=0
-                        machine_cycle_timestamp[machineNo]=datetime.datetime.now(tz=pytz.UTC).replace(microsecond=0).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3]+"+00:00"
-                        machine_cycle_pinvalue[machineNo]=machineobject[machineNo].machine_cycle_pulseTime(machineName[machineNo])
-                        if machine_cycle_pinvalue[machineNo]==1:
-                            if machineGoodbadPartSignal[machineNo]==0:
-                                machine_good_badpart_pinvalue[machineNo]=-1   # "no goodbad part" set quality as -1
+                machineobject[machineNo].machine_cycle_stoptime()
+                flaglist[machineNo]=0    
+            #machine_cycle_risingEdge_detected[machineNo]=0
+                machine_cycle_timestamp[machineNo]=datetime.datetime.now(tz=pytz.UTC).replace(microsecond=0).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3]+"+00:00"
+                machine_cycle_pinvalue[machineNo]=machineobject[machineNo].machine_cycle_pulseTime(machineName[machineNo])
+                if machine_cycle_pinvalue[machineNo]==1:
+                    threadlock.acquire()
+                    if machineGoodbadPartSignal[machineNo]==0:
+                        machine_good_badpart_pinvalue[machineNo]=-1   # "no goodbad part" set quality as -1
                                 #pass
-                            else:
-                                if(GPIO.input(machineGoodbadPartSignal[machineNo])==VerificationLogic): # valid pulse
-                                    machine_good_badpart_pinvalue[machineNo]=0            #good part
-                                else:
-                                    machine_good_badpart_pinvalue[machineNo]=1            # bad part
+                    else:
+                        if(GPIO.input(machineGoodbadPartSignal[machineNo])==VerificationLogic): # valid pulse
+                            machine_good_badpart_pinvalue[machineNo]=0            #good part
+                        else:
+                            machine_good_badpart_pinvalue[machineNo]=1            # bad part
                                 #try:
                                
-                            finalmessage[machineNo]="Quality"+":"+str(machine_good_badpart_pinvalue[machineNo])
-                            log.debug("%s ----> %s",machineName[machineNo],finalmessage[machineNo])
-                            #send_message[machineNo]=machine_cycle_timestamp[machineNo]+"||"+machineName[machineNo]+"||"+finalmessage[machineNo]
+                    finalmessage[machineNo]="Quality"+":"+str(machine_good_badpart_pinvalue[machineNo])
+                    log.debug("%s ----> %s",machineName[machineNo],finalmessage[machineNo])
+                    #send_message[machineNo]=machine_cycle_timestamp[machineNo]+"||"+machineName[machineNo]+"||"+finalmessage[machineNo]
                                 #q.put(send_message[machineNo])
                                 #q.task_done()
-                            messagesSinceLastReboot= messagesSinceLastReboot+1
-                            log.info(" machine Cycle signal received since last Reboot :%d",messagesSinceLastReboot)
-                            with open("timestamp.txt", "r") as file: 
-                                filedata=file.readlines() 
-                                if messagesSinceLastReboot==1:        
-                                        filedata[0]='timestamp of first ECP received after latest Reboot:'+ machine_cycle_timestamp[machineNo] +'\n'
-                                else:
-                      
-                                        filedata[1]= 'timestamp of last ECP received after latest Reboot:'+ machine_cycle_timestamp[machineNo] +'\n'
-                            with open('timestamp.txt', 'w') as file:
-                                file.writelines( filedata )          
-
-                            sendDataToDelphi(machine_cycle_timestamp[machineNo],machineName[machineNo],finalmessage[machineNo])
-                                
+                    messagesSinceLastReboot= messagesSinceLastReboot+1
+                    log.info(" Machine Cycle signal received since last Reboot :%d",messagesSinceLastReboot)
+                    with open("timestamp.txt", "r") as file: 
+                        filedata=file.readlines() 
+                        if messagesSinceLastReboot==1:        
+                            filedata[0]='timestamp of first ECP received after latest Reboot:'+ machine_cycle_timestamp[machineNo] +'\n'
                         else:
-                                log.debug("%s cycle pulse width is invalid",machineName[machineNo])
+                      
+                            filedata[1]= 'timestamp of last ECP received after latest Reboot:'+ machine_cycle_timestamp[machineNo] +'\n'
+                    with open('timestamp.txt', 'w') as file:
+                        file.writelines( filedata )          
+
+                    sendDataToDelphi(machine_cycle_timestamp[machineNo],machineName[machineNo],finalmessage[machineNo])    
+                    threadlock.release()        
+                else:
+                    log.debug("%s cycle pulse width is invalid",machineName[machineNo])
                 machineobject[machineNo].machine_cycle_cleartime()
-                threadlock.release()    
+                    
 
 
 
@@ -469,7 +484,7 @@ plcMachine = lambda totalMachines: eval("plcMachine"+str(totalMachines))
 for addDetectionOnPin in range (totalMachines):
         #log.debug( "added machine cycle detection on GPIO%d",machineCycleSignal[addDetectionOnPin])
         #comment out above line to check , interrupt is added for detection on pins which are reqiured for ECP  
-        GPIO.add_event_detect(machineCycleSignal[addDetectionOnPin], GPIO.BOTH, callback=plcMachine(addDetectionOnPin+1),bouncetime=20)
+        GPIO.add_event_detect(machineCycleSignal[addDetectionOnPin], GPIO.RISING, callback=plcMachine(addDetectionOnPin+1),bouncetime=200)
 
 for m in range (totalMachines):
         machineobject.append(Machine(0, 0, 0))
@@ -505,19 +520,20 @@ try:
 
                         while buffer.empty() !=-1 and NiFiconnectionStatus_Delphi()=='200':
                             data=buffer.pop().rstrip() 
-                            #log.debug(data)   
+                            log.debug("Sending buffered data : [%s]",data)   
                             dataTosend=data.split("||")
-                           # log.debug(dataTosend)
+ #                           log.debug(dataTosend)
                             if len(dataTosend)!= 0:                           
                                 sendDataToDelphi(dataTosend[0],dataTosend[2],dataTosend[3])
-                                time.sleep(1)    
+                                time.sleep(2)    
 
                 else:
                         log.error("Connection status to Delphi NiFi : NO NETWORK ")
 
-                time.sleep(60)
+                time.sleep(300)
 
 
 except KeyboardInterrupt:
         log.debug(" Quit ")
         GPIO.cleanup()
+
