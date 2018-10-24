@@ -1,3 +1,6 @@
+
+''' Software to gather Plc data from Delphi factory shops as a part of Delphi IOT '''
+
 __credits__    =      ["Wipro Team", "Delphi Team"]
 __version__    =      "1.2"
 __maintainer__ =      "Vikram Shelke"
@@ -49,7 +52,7 @@ send_message=[]                             #  every machine has seprate send me
 machine_good_badpart_pinvalue=[]            #  this hold good/bad part pin values
 machine_cycle_risingEdge_detected=[]        #   this hold Rising edges for ECP
 machine_cycle_pinvalue=[]                   # this checks validity of machine cycle pulse  for each machine
-messageinbuffer=0
+#messageinbuffer=0
 buffered=False
 thread_list = []
 messagesSinceLastReboot=0
@@ -233,11 +236,11 @@ def get_mac():
         return mac
 
 #macAddress=str(get_mac())
-macAddress=12
+Address=12
 
 #### form request 
 
-fields1={'MAC':macAddress}
+fields1={'MAC':Address}
 encoded_args = urllib.urlencode(fields1)
 url = 'http://'+ HOST + ':' + PORT + '/'+'nifi_heartbeat' + '?' + encoded_args
 
