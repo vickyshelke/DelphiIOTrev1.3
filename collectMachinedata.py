@@ -537,7 +537,7 @@ try:
                 else:
                         log.error("Connection status to Delphi NiFi : NO NETWORK ")
 
-                time.sleep(300)
+                time.sleep(60)
 
 
 except KeyboardInterrupt:
