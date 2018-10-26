@@ -13,6 +13,7 @@ import json
 
 log = logging.getLogger('')
 log.setLevel(logging.DEBUG)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
 formatterstdout = logging.Formatter('%(levelname)s : %(message)s')
 #formatterstdout = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
 stdoutlog = logging.StreamHandler(sys.stdout)
@@ -38,7 +39,8 @@ encoded_args = urllib.urlencode(fields1)
 url = 'http://'+ HOST + ':' + PORT + '/'+ FETCHURL + '?' + encoded_args
 
 try:
-        r = http.request('GET', url)
+    	log.debug(url)
+        r = http.request('GET', url,retries=False)
         log.debug('HTTP Send Status: %d',r.status)
         log.debug(r.data)
 except urllib3.exceptions.MaxRetryError as e:
