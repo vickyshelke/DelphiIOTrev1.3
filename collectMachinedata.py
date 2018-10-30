@@ -2,7 +2,7 @@ __credits__    =      ["Wipro Team", "Delphi Team"]
 __version__    =      "1.2"
 __maintainer__ =      "Vikram Shelke"
 __email__      =      "vikram.shelke@wipro.com"
-__date__       =      "26/10/2018"
+__date__       =      "25/10/2018"
 __status__     =      "Production" 
 
 
@@ -461,7 +461,11 @@ for addDetectionOnPin in range (totalMachines):
         #log.debug( "added machine cycle detection on GPIO%d",machineCycleSignal[addDetectionOnPin])
         #comment out above line to check , interrupt is added for detection on pins only Rising Edges which are reqiured for ECP  
         try:
-            GPIO.add_event_detect(machineCycleSignal[addDetectionOnPin], GPIO.RISING, callback=plcMachine(addDetectionOnPin+1),bouncetime=200)
+            if VerificationLogic==1:
+                    GPIO.add_event_detect(machineCycleSignal[addDetectionOnPin], GPIO.RISING, callback=plcMachine(addDetectionOnPin+1),bouncetime=200)
+            else:
+                    GPIO.add_event_detect(machineCycleSignal[addDetectionOnPin], GPIO.FALLING, callback=plcMachine(addDetectionOnPin+1),bouncetime=200)
+
         except RuntimeError as e:
             log.error(e)
             log.error(" Please reboot the device ......")
@@ -504,7 +508,7 @@ try:
  #                           log.debug(dataTosend)
                             if len(dataTosend)== 4:                           
                                 sendDataToDelphi(dataTosend[0],dataTosend[2],dataTosend[3])
-                                time.sleep(2)    
+                                time.sleep(5)    
 
                 else:
                         log.error("Connection status to Delphi NiFi : NO NETWORK ")
