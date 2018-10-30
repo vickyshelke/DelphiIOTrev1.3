@@ -10,4 +10,3 @@ BUFFER,holds the buffered data which was not sent to Delphi remote servers(Azure
 logConfig.py holds configuration information which used during setting up servers.
 startup.sh is the process which starts as main process from container.
 Dockerfile.template is the docker container which do the inital package,library setup and starts startup.sh sh as main process.
-timestamp.txt hold the timestamp of latest and first ECP after latest reboot and for previous reboot. 
