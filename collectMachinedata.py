@@ -32,7 +32,7 @@ from  logConfig import *
 #for python 3
 #from urllib.parse import urlencode
 
-http = urllib3.PoolManager()
+http = urllib3.PoolManager(maxsize=10)
 #queueLock = threading.Lock()
 workque = []
 #threadlock=threading.Lock()  
