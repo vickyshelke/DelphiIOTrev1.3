@@ -48,7 +48,6 @@ machine_good_badpart_pinvalue=[]            #  this hold good/bad part pin value
 machine_cycle_risingEdge_detected=[]        #   this hold Rising edges for ECP
 machine_cycle_pinvalue=[]                   # this checks validity of machine cycle pulse  for each machine
 thread_list = []
-#messagesSinceLastReboot=0
 ECPofMachine=[]
 machine_cycle_risingEdge_detected=[]
 #------------------------------------------------------------------------------------------------------------------
@@ -93,7 +92,7 @@ for key, value in path_items:
                                 else:
                                         machineGoodbadPartSignal.append(0)
 
-#Change Logic as per device
+#Check Logic as per device
 
 if Logic == 'Inverted': #For kristek and RPI
         VerificationLogic = 0
@@ -132,7 +131,7 @@ log_stdout.setFormatter(formatter_stdout)
 log.addHandler(log_stdout)
 #use %(lineno)d for printnig line  no
 
-# write logs to fileLOGFILE with rotating file handler which keeps file size limited 
+# write logs to file LOGFILE (machineLog) with rotating file handler which keeps file size limited 
 
 formatter_file = logging.Formatter('%(asctime)s %(levelname)s %(message)s',"%Y-%m-%d %H:%M:%S")
 #formatter_file = logging.Formatter("%(asctime)s %(levelname)s - %(message)s")
@@ -283,7 +282,7 @@ def sendDataToDelphi(timestamp,machinename,data):
                 buffer.push(timestamp+"||"+LOCATION+ "||" + machinename +"||"+data)
                 status=0
                 try:
-                    azure=http.request('GET',urlazure,timeout=2.0,retries=False)
+                    azure=http.request('GET',urlazure,timeout=3.0,retries=False)
                     status=azure.status
                 except urllib3.exceptions.ProtocolError as e: 
                     log.error(e)
@@ -420,7 +419,7 @@ def process_machine_data(machineNo):
 
                     time.sleep(0.7) ## specifically made 3.2 to avoid debouncing of relays happening at falling edges
                     while True:
-                        if(GPIO.input(machineCycleSignal[machineNo])!=VerificationLogic):   #dry contact opend Rising edge detected for machine_cycle pin
+                        if(GPIO.input(machineCycleSignal[machineNo])!=VerificationLogic):   #dry contact opend falling edge detected for machine_cycle pin
                             break 
                     log.debug ("Falling edge : %s Cycle Signal ",machineName[machineNo])
                     machineobject[machineNo].machine_cycle_stoptime()
@@ -489,8 +488,8 @@ for thread in thread_list:
 
 #------------------------------------------------------------------------------------------------------------------------------------------
 '''
-    below part starts thread and wait infinite loop it checks NiFi connection status on every 1 minute 
-    it tries to send data available in buffer if any.
+    below part starts thread and wait infinite loop it checks NiFi connection status on every 2 minute 
+    it tries to send data available in buffer if any with interval of 5 sec. 
 
 '''
 #--------------------------------------------------------------------------------------------------------------------------------------------
