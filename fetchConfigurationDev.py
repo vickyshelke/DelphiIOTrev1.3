@@ -47,9 +47,9 @@ except urllib3.exceptions.MaxRetryError as e:
         log.debug(e)
         sys.exit(1)           #return non zero return code to startup.sh to tell problem in fetching configuration.
 
-#parsed_data = r.data.replace('null','"NoData"')
-#config_data=eval(parsed_data)
-config_data=json.loads(r.data)
+parsed_data = r.data.replace('null','"NoData"')
+config_data=eval(parsed_data)
+#config_data=json.loads(r.data)
 machine_data=[]
 for machine in config_data:
         machine_data.append(machine['machine'])
