@@ -2,7 +2,7 @@ __credits__    =      ["Wipro Team", "Delphi Team"]
 __version__    =      "1.2"
 __maintainer__ =      "Vikram Shelke"
 __email__      =      "vikram.shelke@wipro.com"
-__date__       =      "30/10/2018"
+__date__       =      "25/10/2018"
 __status__     =      "Production" 
 
 
@@ -48,6 +48,7 @@ machine_good_badpart_pinvalue=[]            #  this hold good/bad part pin value
 machine_cycle_risingEdge_detected=[]        #   this hold Rising edges for ECP
 machine_cycle_pinvalue=[]                   # this checks validity of machine cycle pulse  for each machine
 thread_list = []
+#messagesSinceLastReboot=0
 ECPofMachine=[]
 machine_cycle_risingEdge_detected=[]
 #------------------------------------------------------------------------------------------------------------------
@@ -92,7 +93,7 @@ for key, value in path_items:
                                 else:
                                         machineGoodbadPartSignal.append(0)
 
-#Check Logic as per device
+#Change Logic as per device
 
 if Logic == 'Inverted': #For kristek and RPI
         VerificationLogic = 0
@@ -131,7 +132,7 @@ log_stdout.setFormatter(formatter_stdout)
 log.addHandler(log_stdout)
 #use %(lineno)d for printnig line  no
 
-# write logs to file LOGFILE (machineLog) with rotating file handler which keeps file size limited 
+# write logs to fileLOGFILE with rotating file handler which keeps file size limited 
 
 formatter_file = logging.Formatter('%(asctime)s %(levelname)s %(message)s',"%Y-%m-%d %H:%M:%S")
 #formatter_file = logging.Formatter("%(asctime)s %(levelname)s - %(message)s")
@@ -282,7 +283,7 @@ def sendDataToDelphi(timestamp,machinename,data):
                 buffer.push(timestamp+"||"+LOCATION+ "||" + machinename +"||"+data)
                 status=0
                 try:
-                    azure=http.request('GET',urlazure,timeout=3.0,retries=False)
+                    azure=http.request('GET',urlazure,timeout=2.0,retries=False)
                     status=azure.status
                 except urllib3.exceptions.ProtocolError as e: 
                     log.error(e)
@@ -419,7 +420,7 @@ def process_machine_data(machineNo):
 
                     time.sleep(0.7) ## specifically made 3.2 to avoid debouncing of relays happening at falling edges
                     while True:
-                        if(GPIO.input(machineCycleSignal[machineNo])!=VerificationLogic):   #dry contact opend falling edge detected for machine_cycle pin
+                        if(GPIO.input(machineCycleSignal[machineNo])!=VerificationLogic):   #dry contact opend Rising edge detected for machine_cycle pin
                             break 
                     log.debug ("Falling edge : %s Cycle Signal ",machineName[machineNo])
                     machineobject[machineNo].machine_cycle_stoptime()
@@ -441,8 +442,10 @@ def process_machine_data(machineNo):
                         log.debug("%s ----> %s",machineName[machineNo],finalmessage[machineNo])
                         ECPofMachine[machineNo]=ECPofMachine[machineNo]+1
                         log.info(" ECP received since last Reboot for %s : %d ",machineName[machineNo],ECPofMachine[machineNo])        
-                        sendDataToDelphi(machine_cycle_timestamp[machineNo],machineName[machineNo],finalmessage[machineNo])    
-                        #threadlock.release()        
+                        #sendDataToDelphi(machine_cycle_timestamp[machineNo],machineName[machineNo],finalmessage[machineNo])    
+                        #threadlock.release() 
+                        #log.debug("pushing it to buffer")
+                        buffer.push(machine_cycle_timestamp[machineNo]+"||"+LOCATION+ "||" + machineName[machineNo] +"||"+finalmessage[machineNo])       
                     else:
                         log.error("%s cycle pulse width is invalid",machineName[machineNo])
                 else:
@@ -450,7 +453,14 @@ def process_machine_data(machineNo):
                 machineobject[machineNo].machine_cycle_cleartime()
                     
 
+def heartbeatmessage():
 
+    while True:
+        if NiFiconnectionStatus_Delphi()=='200':
+            log.debug( "Connection status to Delphi NiFi for edge device[%s] : CONNECTED ",str(get_mac()))
+        else:
+            log.error("Connection status to Delphi NiFi : NO NETWORK ")
+        time.sleep(120)
 
 #------------------------ create machine object and call function as per no of machine connected to device----------------------------------
 
@@ -486,10 +496,13 @@ for thread in thread_list:
     thread.start()
 
 
+t = threading.Thread(name = "heartbeatthread", target=heartbeatmessage, args=())
+t.start()
+
 #------------------------------------------------------------------------------------------------------------------------------------------
 '''
-    below part starts thread and wait infinite loop it checks NiFi connection status on every 2 minute 
-    it tries to send data available in buffer if any with interval of 5 sec. 
+    below part starts thread and wait infinite loop it checks NiFi connection status on every 1 minute 
+    it tries to send data available in buffer if any.
 
 '''
 #--------------------------------------------------------------------------------------------------------------------------------------------
@@ -497,22 +510,16 @@ for thread in thread_list:
 log.debug("Data collection started")
 try:
         while True:
-                if NiFiconnectionStatus_Delphi()=='200':
-                        log.debug( "Connection status to Delphi NiFi for edge device[%s] : CONNECTED ",str(get_mac()))
-
-                        while buffer.empty() !=-1 and NiFiconnectionStatus_Delphi()=='200':
-                            data=buffer.pop().rstrip() 
-                            log.debug("Sending buffered data : [%s]",data)   
-                            dataTosend=data.split("||")
- #                           log.debug(dataTosend)
-                            if len(dataTosend)== 4:                           
-                                sendDataToDelphi(dataTosend[0],dataTosend[2],dataTosend[3])
-                                time.sleep(5)    
-
-                else:
-                        log.error("Connection status to Delphi NiFi : NO NETWORK ")
-
-                time.sleep(120)
+                
+            while buffer.empty() !=-1 and NiFiconnectionStatus_Delphi()=='200':
+                data=buffer.pop().rstrip() 
+                #log.debug("Sending buffered data : [%s]",data)   
+                dataTosend=data.split("||")
+                log.debug(dataTosend)
+                if len(dataTosend)== 4:                           
+                    sendDataToDelphi(dataTosend[0],dataTosend[2],dataTosend[3])
+                    time.sleep(2)           # buffered messages sent on  interval of 2 sec        
+            time.sleep(10) # just avoid busy waiting of cpu 
 
 
 except KeyboardInterrupt:
