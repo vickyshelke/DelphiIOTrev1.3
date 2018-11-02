@@ -108,7 +108,7 @@ else : #For Iono PI siskon PI,din RPI
 for k in range (totalMachines):
         machine_good_badpart_pinvalue.append(0)
         machine_cycle_risingEdge_detected.append(0)
-        machine_cycle_pinvalue.append(0)
+        machine_cycle_pinvalue.append("")
         machine_cycle_timestamp.append("NODATA")
         finalmessage.append("NODATA")
         ECPofMachine.append(0)
@@ -209,11 +209,10 @@ class Machine:
         def machine_cycle_pulseTime(self,machinename):
                 self.machinename=machinename
                 self.machine_cycle_pulse_time=self.machine_cycle_falling_edge-(self.machine_cycle_rising_edge+0.2)
-                log.debug ("Total Duration of MACHINE CYCLE SIGNAL for %s :%s ",machinename,str(self.machine_cycle_pulse_time))
                 if self.machine_cycle_pulse_time >=2 and self.machine_cycle_pulse_time <= 4 :
-                        return 1
+                        return str(self.machine_cycle_pulse_time)
                 else:
-                        return 0
+                        return "False"
 
 
 
@@ -422,13 +421,14 @@ def process_machine_data(machineNo):
                     while True:
                         if(GPIO.input(machineCycleSignal[machineNo])!=VerificationLogic):   #dry contact opend Rising edge detected for machine_cycle pin
                             break 
-                    log.debug ("Falling edge : %s Cycle Signal ",machineName[machineNo])
                     machineobject[machineNo].machine_cycle_stoptime()
                     machine_cycle_timestamp[machineNo]=datetime.datetime.now(tz=pytz.UTC).replace(microsecond=0).strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3]+"+00:00"
+                    log.debug ("Falling edge : %s Cycle Signal ",machineName[machineNo])
                     machine_cycle_pinvalue[machineNo]=machineobject[machineNo].machine_cycle_pulseTime(machineName[machineNo])
-                    machine_cycle_risingEdge_detected[machineNo]=0                    
-                    if machine_cycle_pinvalue[machineNo]==1:
+                    machine_cycle_risingEdge_detected[machineNo]=0     #clear Rising edge Flag  to detect new Rising Edge              
+                    if machine_cycle_pinvalue[machineNo]!='False':
                     #threadlock.acquire()
+                        log.debug("Total Duration of ECP for %s :%s",machineName[machineNo],machine_cycle_pinvalue[machineNo])
                         if machineGoodbadPartSignal[machineNo]==0:
                             machine_good_badpart_pinvalue[machineNo]=-1   # "no goodbad part" set quality as -1
                                 #pass
@@ -447,11 +447,13 @@ def process_machine_data(machineNo):
                         #log.debug("pushing it to buffer")
                         buffer.push(machine_cycle_timestamp[machineNo]+"||"+LOCATION+ "||" + machineName[machineNo] +"||"+finalmessage[machineNo])       
                     else:
-                        log.error("%s cycle pulse width is invalid",machineName[machineNo])
-                else:
-                    log.debug("False Trigger")        
+                        log.error("ECP of %s is invalid",machineName[machineNo])
+                else: 
+                    log.debug("False Trigger for : %s",machineName[machineNo])
+                    machine_cycle_risingEdge_detected[machineNo]=0    # clear rising edge flage to detect new rising Edge
+
                 machineobject[machineNo].machine_cycle_cleartime()
-                    
+        log.debug("Data collection stopped for : %s",machineName[machineNo])            
 
 def heartbeatmessage():
 
@@ -496,6 +498,8 @@ for thread in thread_list:
     thread.start()
 
 
+
+
 t = threading.Thread(name = "heartbeatthread", target=heartbeatmessage, args=())
 t.start()
 
@@ -518,8 +522,8 @@ try:
                 log.debug(dataTosend)
                 if len(dataTosend)== 4:                           
                     sendDataToDelphi(dataTosend[0],dataTosend[2],dataTosend[3])
-                    time.sleep(2)           # buffered messages sent on  interval of 2 sec        
-            time.sleep(10) # just avoid busy waiting of cpu 
+                    time.sleep(2)                    
+            time.sleep(10) # just avoid busy waiting of cpu
 
 
 except KeyboardInterrupt:
